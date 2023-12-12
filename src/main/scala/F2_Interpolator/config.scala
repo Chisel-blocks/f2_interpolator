@@ -1,6 +1,6 @@
 // See LICENSE_AALTO.txt for license details
 
-package fir.config
+package f2_interpolator.config
 
 import net.jcazevedo.moultingyaml._
 import net.jcazevedo.moultingyaml.DefaultYamlProtocol._
@@ -8,40 +8,32 @@ import scala.math.BigInt
 import scala.io.Source
 import chisel3._
 
-/** FIR parameter case class
-  */
-case class FirGeneric(
-  syntax_version:     Option[Int], // None for scala instantiation
-  resolution:	      Int,
-  gainBits:           Int
-)
+import hb_interpolator.config
+import cic_interpolator.config
 
-case class FirTaps(
-  H:                  Seq[Double]
-)
-
-case class FirConfig(
+case class F2Config(
   syntax_version:     Option[Int], // None for scala instantiation
   resolution:         Int,
-  H:		      Seq[Int],
-  gainBits:           Int
+  gainBits:           Int,
+  hb1_config:         HbConfig,
+  hb2_config:         HbConfig,
+  hb3_config:         HbConfig,
+  cic3_config:        CicConfig
 )
 
-object FirConfig {
-  implicit val firConfigFormat = yamlFormat3(FirGeneric)
-
-  implicit val dHFormat = yamlFormat1(FirTaps)
+object F2Config {
+  implicit val f2ConfigFormat = yamlFormat3(F2Config.apply)
 
   // TODO: Update this to always match the major version number of the release
   val syntaxVersion = 2
 
   /** Exception type for FIR config parsing errors */
-  class FirConfigParseException(msg: String) extends Exception(msg)
+  class F2ConfigParseException(msg: String) extends Exception(msg)
 
   /** Type for representing error return values from a function */
   case class Error(msg: String) {
     /** Throw a parsing exception with a debug message. */
-    def except() = { throw new FirConfigParseException(msg) }
+    def except() = { throw new F2ConfigParseException(msg) }
 
     /** Abort program execution and print out the reason */
     def panic() = {
@@ -68,7 +60,7 @@ object FirConfig {
     Left(version)
   }
 
-  def loadFromFile(filename: String): Either[FirConfig, Error] = {
+  def loadFromFile(filename: String): Either[F2Config, Error] = {
     println(s"\nLoading fir configuration from file: $filename")
     var fileString: String = ""
     try {
@@ -92,16 +84,12 @@ object FirConfig {
     }
 
     // Parse FirConfig from YAML AST
-    val generic = yamlAst.convertTo[FirGeneric]
-    val taps = yamlAst.convertTo[FirTaps]
+    val f2_config = yamlAst.convertTo[F2Config]
 
-    val config = new FirConfig(generic.syntax_version, generic.resolution, taps.H.map(_ * (math.pow(2, generic.resolution - 1) / 2 - 1)).map(_.toInt), generic.gainBits)
+    val config = new F2Config(f2_config.syntax_version, f2_config.resolution, f2_config.gainBits)
 
     println("resolution:")
     println(config.resolution)
-
-    println("taps:")
-    println(config.H)
 
     println("gainBits:")
     println(config.gainBits)
