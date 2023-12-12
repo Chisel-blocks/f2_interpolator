@@ -1,26 +1,21 @@
-#!/bin/sh
-#Init submodules in this dir, if any
-DIR="$( cd "$( dirname $0 )" && pwd )"
-git submodule update --init
+#!/usr/bin/env bash
+#Selective initialization of submodules
+#Written by by Marko Kosunen, marko.kosunen@aalto.fi, 2017
+DIR=$( cd `dirname $0` && pwd )
+SUBMODULES="\
+    ./cic \
+    ./hb
+"
 
-#Publish local the ones you need
-#cd $DIR/clkdiv_n_2_4_8
-#sbt publishLocal
+git submodule sync
+for mod in $SUBMODULES; do 
+    git submodule update --init $mod
+    cd ${mod}
+    if [ -f ./init_submodules.sh ]; then
+        ./init_submodules.sh
+    fi
+    cd ${DIR}
 
-#Selectively, init submodules of a larger projects
-#cd $DIR/rocket-chip
-#git submodule update --init chisel3
-#git submodule update --init firrtl
-#git submodule update --init hardfloat
-
-#Recursively update submodeles
-#cd $DIR/eagle_serdes
-#git submodule update --init --recursive serdes_top
-#sbt publishLocal
-#Assemble executables
-###sbt publishing
-#cd $DIR/rocket-chip/firrtl
-#sbt publishLocal
-#sbt assembly
-
+done
 exit 0
+

@@ -1,0 +1,6 @@
+[submodule "cic"]
+	path = cic
+	url = git@gitlab.com:a-core/a-core_chisel/cic_interpolator.git
+[submodule "hb"]
+	path = hb
+	url = git@gitlab.com:a-core/a-core_chisel/hb_interpolator.git

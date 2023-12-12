@@ -1,0 +1,275 @@
+// Finitie impulse filter
+package f2_interpolator
+import config._
+import config.{FirConfig}
+
+import java.io.File
+
+import chisel3._
+import chisel3.experimental.FixedPoint
+import chisel3.stage.{ChiselStage, ChiselGeneratorAnnotation}
+import chisel3.stage.ChiselGeneratorAnnotation
+
+import dsptools._
+import dsptools.numbers.DspComplex
+
+import hb_interpolator._
+import cic_interpolator._
+
+class F2_InterpolatorCLK extends Bundle {
+    val cicclockfast = Input(Clock())
+    val hb1clock_low = Input(Clock())
+    val hb1clock_high = Input(Clock())
+    val hb2clock_high = Input(Clock())
+    val hb3clock_high = Input(Clock())
+}
+
+class F2_InterpolatorCTRL(val resolution : Int, val gainBits: Int) extends Bundle {
+    val cicderivscale = Input(UInt(gainBits.W))
+    val cicderivshift = Input(UInt(log2Ceil(resolution).W))
+    val reset_loop = Input(Bool())
+    val hb1scale = Input(UInt(gainBits.W))
+    val hb2scale = Input(UInt(gainBits.W))
+    val hb3scale = Input(UInt(gainBits.W))
+    val mode = Input(UInt(3.W))
+}
+
+class F2_InterpolatorIO(resolution: Int, gainBits: Int) extends Bundle {
+    val clock = new F2_InterpolatorCLK    
+    val control = new F2_InterpolatorCTRL(resolution=resolution,gainBits=gainBits)
+    val in = new Bundle {
+        val iptr_A = Input(DspComplex(SInt(resolution.W), SInt(resolution.W)))
+    }
+    val out = new Bundle {
+        val Z = Output(DspComplex(SInt(resolution.W), SInt(resolution.W)))
+    }
+}
+
+class F2_Interpolator(config: F2Config) extends Module {
+    val io = IO(new F2_InterpolatorIO(resolution=config.resolution, gainBits=config.gainBits))
+    val data_reso = config.resolution
+    val calc_reso = config.resolution * 2
+
+    //State definitions
+    val bypass :: two :: four :: eight :: more :: Nil = Enum(5)
+    //Select state with the fastest master clock
+    val state = RegInit(bypass)
+    
+    //Decoder for the modes
+    when(io.control.mode === 0.U){
+        state := bypass
+    } .elsewhen(io.control.mode === 1.U) {
+        state := two
+    } .elsewhen(io.control.mode === 2.U) {
+        state := four
+    } .elsewhen(io.control.mode === 3.U) {
+        state := eight
+    } .elsewhen(io.control.mode === 4.U) {
+        state := more
+    }.otherwise {
+        state := bypass
+    }
+    
+    //Reset initializations
+    val hb1reset = Wire(Bool())
+    val hb2reset = Wire(Bool())
+    val hb3reset = Wire(Bool())
+    hb1reset := reset.toBool
+    hb2reset := reset.toBool
+    hb3reset := reset.toBool
+
+    val cicreset = Wire(Bool())
+    cicreset := io.control.reset_loop
+    
+    val hb1 = withClockAndReset(io.clock.hb1clock_low, hb1reset)(Module( 
+        new HB_Interpolator(
+            n=n, resolution=resolution, coeffs=halfband_BW_045_N_40.H.map(_ * (math.pow(2,coeffres - 1) - 1)).map(_.toInt)
+        )
+    ))
+
+    val hb2 = withClockAndReset(io.clock.hb1clock_high, hb2reset)(Module( 
+        new HB_Interpolator( 
+            n=n, resolution=resolution, coeffs=halfband_BW_0225_N_8.H.map(_ * (math.pow(2, coeffres - 1) - 1)).map(_.toInt)
+        )
+    ))
+
+    val hb3 = withClockAndReset(io.clock.hb2clock_high, hb3reset)(Module(
+        new HB_Interpolator(
+            n=n, resolution=resolution, coeffs=halfband_BW_01125_N_6.H.map(_ * (math.pow(2, coeffres - 1) - 1)).map(_.toInt)
+        )
+    ))
+
+    val cic = withClockAndReset(io.clock.hb3clock_high, cicreset)(Module(
+        new CIC_Interpolator(
+            n=n, resolution=resolution, gainBits=gainBits
+        )
+    ))
+
+    //Default is to bypass
+    hb1.io.clock_high := io.clock.hb1clock_high
+    hb1.io.scale      := io.control.hb1scale
+    hb2.io.clock_high := io.clock.hb2clock_high
+    hb2.io.scale      := io.control.hb2scale
+    hb3.io.clock_high := io.clock.hb3clock_high
+    hb3.io.scale      := io.control.hb3scale
+    cic.io.clockfast  := io.clock.cic3clockfast
+    cic.io.derivscale := io.control.cic3derivscale
+    cic.io.derivshift := io.control.cic3derivshift
+    hb1.io.iptr_A     := io.in.iptr_A
+    hb2.io.iptr_A     := hb1.io.Z
+    hb3.io.iptr_A     := hb2.io.Z
+    cic.io.iptr_A     := hb3.io.Z
+    io.out.Z              := withClock(io.clock.hb1clock_low) (RegNext(io.in.iptr_A)) 
+    
+    //Modes
+    switch(state) {
+        is(bypass) {
+            cicreset         := true.B 
+            hb1reset         := true.B
+            hb2reset         := true.B
+            hb3reset         := true.B
+            io.out.Z         := withClock(io.clock.hb1clock_low) (RegNext(io.in.iptr_A))
+        }
+        is(two) {
+            hb1.io.iptr_A    := io.in.iptr_A
+            hb1reset         := reset.toBool
+            hb2reset         := true.B
+            hb3reset         := true.B
+            cicreset         := true.B 
+            io.out.Z         := hb1.io.Z
+        }
+        is(four) {
+            hb1.io.iptr_A    := io.in.iptr_A
+            hb1reset         := reset.toBool
+            hb2reset         := reset.toBool
+            hb3reset         := true.B
+            cicreset         := true.B 
+            hb2.io.iptr_A    := hb1.io.Z
+            io.out.Z         := hb2.io.Z
+        }
+        is(eight) {
+            hb1.io.iptr_A    := io.in.iptr_A
+            hb1reset         := reset.toBool
+            hb2reset         := reset.toBool
+            hb3reset         := reset.toBool
+            cicreset         := io.control.reset_loop 
+            hb2.io.iptr_A    := hb1.io.Z
+            hb3.io.iptr_A    := hb2.io.Z
+            io.out.Z         := hb3.io.Z
+        }
+        is(more) {
+            hb1.io.iptr_A    := io.in.iptr_A
+            hb1reset         := reset.toBool
+            hb2reset         := reset.toBool
+            hb3reset         := reset.toBool
+            cicreset         := io.control.reset_loop
+            hb2.io.iptr_A    := hb1.io.Z
+            hb3.io.iptr_A    := hb2.io.Z
+            cic.io.iptr_A    := hb3.io.Z
+            io.out.Z         := cic.io.Z
+        }
+    }
+}
+
+
+
+/** Generates verilog or sv*/
+object FIR extends App with OptionParser {
+  // Parse command-line arguments
+  val (options, arguments) = getopts(default_opts, args.toList)
+  printopts(options, arguments)
+
+  val config_file = options("config_file")
+  val target_dir = options("td")
+  var f2_config: Option[F2Config] = None
+  F2Config.loadFromFile(config_file) match {
+    case Left(config) => {
+      f2_config = Some(config)
+    }
+    case Right(err) => {
+      System.err.println(s"\nCould not load FIR configuration from file:\n${err.msg}")
+      System.exit(-1)
+    }
+  }
+
+  // Generate verilog
+  val annos = Seq(ChiselGeneratorAnnotation(() => new F2_Interpolator(config=f2_config.get)))
+  //(new ChiselStage).execute(arguments.toArray, annos)
+  val sysverilog = (new ChiselStage).emitSystemVerilog(
+    new F2_Interpolator(config=f2_config.get),
+     
+    //args
+    Array("--target-dir", target_dir))
+}
+
+
+
+/** Module-specific command-line option parser */
+trait OptionParser {
+  // Module specific command-line option flags
+  val available_opts: List[String] = List(
+      "-config_file",
+      "-td"
+  )
+
+  // Default values for the command-line options
+  val default_opts : Map[String, String] = Map(
+    "config_file"->"f2-config.yml",
+    "td"->"verilog/"
+  )
+
+  /** Recursively parse option flags from command line args
+   * @param options Map of command line option names to their respective values.
+   * @param arguments List of arguments to parse.
+   * @return a tuple whose first element is the map of parsed options to their values 
+   *         and the second element is the list of arguments that don't take any values.
+   */
+  def getopts(options: Map[String, String], arguments: List[String]) : (Map[String, String], List[String]) = {
+    val usage = s"""
+      |Usage: ${this.getClass.getName.replace("$","")} [-<option> <argument>]
+      |
+      | Options
+      |     -config_file        [String]  : Generator YAML configuration file name. Default "fir-config.yml".
+      |     -td                 [String]  : Target dir for building. Default "verilog/".
+      |     -h                            : Show this help message.
+      """.stripMargin
+
+    // Parse next elements in argument list
+    arguments match {
+      case "-h" :: tail => {
+        println(usage)
+        sys.exit()
+      }
+      case option :: value :: tail if available_opts contains option => {
+        val (newopts, newargs) = getopts(
+            options ++ Map(option.replace("-","") -> value), tail
+        )
+        (newopts, newargs)
+      }
+      case argument :: tail => {
+        val (newopts, newargs) = getopts(options, tail)
+        (newopts, argument.toString +: newargs)
+      }
+      case Nil => (options, arguments)
+    }
+  }
+
+  /** Print parsed options and arguments to stdout */
+  def printopts(options: Map[String, String], arguments: List[String]) = {
+    println("\nCommand line options:")
+    options.nonEmpty match {
+      case true => for ((k,v) <- options) {
+        println(s"  $k = $v")
+      }
+      case _ => println("  None")
+    }
+    println("\nCommand line arguments:")
+    arguments.nonEmpty match {
+      case true => for (arg <- arguments) {
+        println(s"  $arg")
+      }
+      case _ => println("  None")
+    }
+  }
+}
+
