@@ -167,29 +167,32 @@ class F2_Interpolator(config: F2Config) extends Module {
 
 /** Generates verilog or sv*/
 object FIR extends App with OptionParser {
-  // Parse command-line arguments
-  val (options, arguments) = getopts(default_opts, args.toList)
-  printopts(options, arguments)
+    // Parse command-line arguments
+    val (options, arguments) = getopts(default_opts, args.toList)
+    printopts(options, arguments)
 
-  val config_file = options("config_file")
-  val target_dir = options("td")
-  var f2_config: Option[F2Config] = None
+    val f2config_file = options("f2config_file")
+    val hb1config_file = options("hb1config_file")
+    val hb2config_file = options("hb2config_file")
+    val hb3config_file = options("hb3config_file")
+    val cicconfig_file = options("cicconfig_file")
+    val target_dir = options("td")
+    var f2_config: Option[F2Config] = None
 
-  F2Config.loadFromFile(config_file) match {
-    case Left(config) => {
-      f2_config = Some(config)
+    F2Config.loadFromFiles(f2config_file, hb1config_file, hb2config_file, hb3config_file, cicconfig_file) match {
+        case Left(config) => {
+            f2_config = Some(config)
+        }
+        case Right(err) => {
+            System.err.println(s"\nCould not load FIR configuration from file:\n${err.msg}")
+            System.exit(-1)
+        }
     }
-    case Right(err) => {
-      System.err.println(s"\nCould not load FIR configuration from file:\n${err.msg}")
-      System.exit(-1)
-    }
-  }
 
-  // Generate verilog
-  val annos = Seq(ChiselGeneratorAnnotation(() => new F2_Interpolator(config=f2_config.get)))
-  //(new ChiselStage).execute(arguments.toArray, annos)
-  val sysverilog = (new ChiselStage).emitSystemVerilog(
-    new F2_Interpolator(config=f2_config.get),
+    // Generate verilog
+    val annos = Seq(ChiselGeneratorAnnotation(() => new F2_Interpolator(config=f2_config.get)))
+    val sysverilog = (new ChiselStage).emitSystemVerilog(
+        new F2_Interpolator(config=f2_config.get),
      
     //args
     Array("--target-dir", target_dir))
@@ -201,13 +204,21 @@ object FIR extends App with OptionParser {
 trait OptionParser {
   // Module specific command-line option flags
   val available_opts: List[String] = List(
-      "-config_file",
+      "-f2config_file",
+      "-hb1config_file",
+      "-hb2config_file",
+      "-hb3config_file",
+      "-cicconfig_file",
       "-td"
   )
 
   // Default values for the command-line options
   val default_opts : Map[String, String] = Map(
-    "config_file"->"configs/f2-config.yml",
+    "f2config_file"->"f2-config.yml",
+    "hb1config_file"->"hb/configs/hb1-config.yml",
+    "hb2config_file"->"hb/configs/hb2-config.yml",
+    "hb3config_file"->"hb/configs/hb3-config.yml",
+    "cicconfig_file"->"cic/configs/cic3-config.yml",
     "td"->"verilog/"
   )
 
@@ -222,7 +233,11 @@ trait OptionParser {
       |Usage: ${this.getClass.getName.replace("$","")} [-<option> <argument>]
       |
       | Options
-      |     -config_file        [String]  : Generator YAML configuration file name. Default "fir-config.yml".
+      |     -f2config_file      [String]  : Generator YAML configuration file name. Default "f2-config.yml".
+      |     -hb1config_file     [String]  : Generator YAML configuration file name. Default "hb1-config.yml".
+      |     -hb2config_file     [String]  : Generator YAML configuration file name. Default "hb2-config.yml".
+      |     -hb3config_file     [String]  : Generator YAML configuration file name. Default "hb3-config.yml".
+      |     -cicconfig_file     [String]  : Generator YAML configuration file name. Default "cic3-config.yml".
       |     -td                 [String]  : Target dir for building. Default "verilog/".
       |     -h                            : Show this help message.
       """.stripMargin

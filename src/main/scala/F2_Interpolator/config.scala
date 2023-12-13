@@ -11,6 +11,12 @@ import chisel3._
 import hb_interpolator.config
 import cic_interpolator.config
 
+case class F2Generic(
+  syntax_version:     Option[Int], // None for scala instantiation
+  resolution:         Int,
+  gainBits:           Int
+)
+
 case class F2Config(
   syntax_version:     Option[Int], // None for scala instantiation
   resolution:         Int,
@@ -22,7 +28,7 @@ case class F2Config(
 )
 
 object F2Config {
-  implicit val f2ConfigFormat = yamlFormat3(F2Config.apply)
+  implicit val f2GenericFormat = yamlFormat3(F2Generic)
 
   // TODO: Update this to always match the major version number of the release
   val syntaxVersion = 2
@@ -60,12 +66,52 @@ object F2Config {
     Left(version)
   }
 
-  def loadFromFile(filename: String): Either[F2Config, Error] = {
-    println(s"\nLoading fir configuration from file: $filename")
-    var fileString: String = ""
+  def loadFromFiles(f2file: String, hb1file: String, hb2file: String, hb3file: String, cicfile: String): Either[F2Config, Error] = {
+    println(s"\nLoading f2 configuration from file: $f2file")
+    var f2fileString: String = ""
     try {
-      val bufferedSource = Source.fromFile(filename)
-      fileString = bufferedSource.getLines.mkString("\n")
+      val bufferedSource = Source.fromFile(f2file)
+      fileString = bufferedSource.getLines().mkString("\n")
+      bufferedSource.close
+    } catch {
+      case e: Exception => return Right(Error(e.getMessage()))
+    }
+
+    println(s"\nLoading hb1 configuration from file: $hb1file")
+    var hb1fileString: String = ""
+    try {
+      val bufferedSource = Source.fromFile(hb1file)
+      fileString = bufferedSource.getLines().mkString("\n")
+      bufferedSource.close
+    } catch {
+      case e: Exception => return Right(Error(e.getMessage()))
+    }
+
+    println(s"\nLoading hb2 configuration from file: $hb2file")
+    var hb2fileString: String = ""
+    try {
+      val bufferedSource = Source.fromFile(hb2file)
+      fileString = bufferedSource.getLines().mkString("\n")
+      bufferedSource.close
+    } catch {
+      case e: Exception => return Right(Error(e.getMessage()))
+    }
+
+    println(s"\nLoading hb3 configuration from file: $hb3file")
+    var hb3fileString: String = ""
+    try {
+      val bufferedSource = Source.fromFile(hb3file)
+      fileString = bufferedSource.getLines().mkString("\n")
+      bufferedSource.close
+    } catch {
+      case e: Exception => return Right(Error(e.getMessage()))
+    }
+
+    println(s"\nLoading cic configuration from file: $cicfile")
+    var cicfileString: String = ""
+    try {
+      val bufferedSource = Source.fromFile(cicfile)
+      fileString = bufferedSource.getLines().mkString("\n")
       bufferedSource.close
     } catch {
       case e: Exception => return Right(Error(e.getMessage()))
@@ -76,23 +122,52 @@ object F2Config {
     //println(s"```\n$fileString\n```")
 
     // Determine syntax version
-    val yamlAst = fileString.parseYaml
-    val syntaxVersion = parseSyntaxVersion(yamlAst)
+    val F2yamlAst = f2fileString.parseYaml
+    val HB1yamlAst = hb1fileString.parseYaml
+    val HB2yamlAst = hb2fileString.parseYaml
+    val HB3yamlAst = hb3fileString.parseYaml
+    val CICyamlAst = cicfileString.parseYaml
+
+    val syntaxVersion = parseSyntaxVersion(F2yamlAst)
     syntaxVersion match {
       case Left(value) => ()
       case Right(err) => return Right(err)
     }
 
     // Parse FirConfig from YAML AST
-    val f2_config = yamlAst.convertTo[F2Config]
+    val f2_config = F2yamlAst.convertTo[F2Generic]
+    val hb1_config = HB1yamlAst.convertTo[HbConfig]
+    val hb2_config = HB2yamlAst.convertTo[HbConfig]
+    val hb3_config = HB3yamlAst.convertTo[HbConfig]
+    val cic_config = CICyamlAst.convertTo[CicConfig]
 
-    val config = new F2Config(f2_config.syntax_version, f2_config.resolution, f2_config.gainBits)
+    val config = new F2Config(
+	    f2_config.syntax_version, 
+	    f2_config.resolution, 
+	    f2_config.gainBits,
+        hb1_config,
+        hb2_config,
+        hb3_config,
+        cic_config
+    )
 
     println("resolution:")
     println(config.resolution)
 
     println("gainBits:")
     println(config.gainBits)
+
+    println("hb1:")
+    println(config.hb1_config)
+
+    println("hb2:")
+    println(config.hb2_config)
+
+    println("hb3:")
+    println(config.hb3_config)
+
+    println("cic:")
+    println(config.cic_config)
 
     Left(config)
   }

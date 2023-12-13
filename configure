@@ -75,10 +75,14 @@ TEST_TARGETS = \$(foreach name,\$(TEST_MODULES), test_\$(name))
 SBT=sbt -J-Xmx16G -J-Xss8M
 
 # Default parameters
-config_file ?= "f2-config.yml"
+f2config_file ?= "f2-config.yml"
+hb1config_file ?= "hb/configs/hb1-config.yml"
+hb2config_file ?= "hb/configs/hb2-config.yml"
+hb3config_file ?= "hb/configs/hb3-config.yml"
+cicconfig_file ?= "cic/configs/cic3-config.yml"
 td ?= "verilog/"
 
-MAINPARAMS = -config_file \$(config_file) -td \$(td)
+MAINPARAMS = -f2config_file \$(f2config_file) -hb1config_file \$(hb1config_file) -hb2config_file \$(hb2config_file) -hb3config_file \$(hb3config_file) -cicconfig_file \$(cicconfig_file) -td \$(td)
 
 
 

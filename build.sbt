@@ -38,3 +38,7 @@ def gitSubmoduleHashSnapshotVersion(submod: String): String = {
     val shellcommand =  "git submodule status | grep %s | awk '{print substr($1,0,7)}'".format(submod)
     scala.sys.process.Process(Seq("/bin/sh", "-c", shellcommand )).!!.mkString.replaceAll("\\s", "")+"-SNAPSHOT"
 }
+// Put your git-version controlled snapshots here
+// libraryDependencies += "Chisel-blocks" %% "someblock" % gitSubmoduleHashSnapshotVersion("someblock")
+libraryDependencies += "Chisel-blocks" %% "hb_interpolator" % gitSubmoduleHashSnapshotVersion("hb_interpolator")
+libraryDependencies += "Chisel-blocks" %% "cic_interpolator" % gitSubmoduleHashSnapshotVersion("cic_interpolator")
