@@ -8,8 +8,8 @@ import scala.math.BigInt
 import scala.io.Source
 import chisel3._
 
-import hb_interpolator.config
-import cic_interpolator.config
+import hb_interpolator.config.{HbConfig}
+import cic_interpolator.config.{CicConfig}
 
 case class F2Generic(
   syntax_version:     Option[Int], // None for scala instantiation
@@ -29,6 +29,8 @@ case class F2Config(
 
 object F2Config {
   implicit val f2GenericFormat = yamlFormat3(F2Generic)
+  implicit val HbConfigFormat = yamlFormat4(HbConfig.apply)
+  implicit val CicConfigFormat = yamlFormat4(CicConfig.apply)
 
   // TODO: Update this to always match the major version number of the release
   val syntaxVersion = 2
@@ -66,12 +68,12 @@ object F2Config {
     Left(version)
   }
 
-  def loadFromFiles(f2file: String, hb1file: String, hb2file: String, hb3file: String, cicfile: String): Either[F2Config, Error] = {
+  def loadFromFiles(f2file: String, hb1file: String, hb2file: String, hb3file: String, cic3file: String): Either[F2Config, Error] = {
     println(s"\nLoading f2 configuration from file: $f2file")
     var f2fileString: String = ""
     try {
       val bufferedSource = Source.fromFile(f2file)
-      fileString = bufferedSource.getLines().mkString("\n")
+      f2fileString = bufferedSource.getLines().mkString("\n")
       bufferedSource.close
     } catch {
       case e: Exception => return Right(Error(e.getMessage()))
@@ -81,7 +83,7 @@ object F2Config {
     var hb1fileString: String = ""
     try {
       val bufferedSource = Source.fromFile(hb1file)
-      fileString = bufferedSource.getLines().mkString("\n")
+      hb1fileString = bufferedSource.getLines().mkString("\n")
       bufferedSource.close
     } catch {
       case e: Exception => return Right(Error(e.getMessage()))
@@ -91,7 +93,7 @@ object F2Config {
     var hb2fileString: String = ""
     try {
       val bufferedSource = Source.fromFile(hb2file)
-      fileString = bufferedSource.getLines().mkString("\n")
+      hb2fileString = bufferedSource.getLines().mkString("\n")
       bufferedSource.close
     } catch {
       case e: Exception => return Right(Error(e.getMessage()))
@@ -101,17 +103,17 @@ object F2Config {
     var hb3fileString: String = ""
     try {
       val bufferedSource = Source.fromFile(hb3file)
-      fileString = bufferedSource.getLines().mkString("\n")
+      hb3fileString = bufferedSource.getLines().mkString("\n")
       bufferedSource.close
     } catch {
       case e: Exception => return Right(Error(e.getMessage()))
     }
 
-    println(s"\nLoading cic configuration from file: $cicfile")
-    var cicfileString: String = ""
+    println(s"\nLoading cic3 configuration from file: $cic3file")
+    var cic3fileString: String = ""
     try {
-      val bufferedSource = Source.fromFile(cicfile)
-      fileString = bufferedSource.getLines().mkString("\n")
+      val bufferedSource = Source.fromFile(cic3file)
+      cic3fileString = bufferedSource.getLines().mkString("\n")
       bufferedSource.close
     } catch {
       case e: Exception => return Right(Error(e.getMessage()))
@@ -126,7 +128,7 @@ object F2Config {
     val HB1yamlAst = hb1fileString.parseYaml
     val HB2yamlAst = hb2fileString.parseYaml
     val HB3yamlAst = hb3fileString.parseYaml
-    val CICyamlAst = cicfileString.parseYaml
+    val CICyamlAst = cic3fileString.parseYaml
 
     val syntaxVersion = parseSyntaxVersion(F2yamlAst)
     syntaxVersion match {
@@ -139,7 +141,7 @@ object F2Config {
     val hb1_config = HB1yamlAst.convertTo[HbConfig]
     val hb2_config = HB2yamlAst.convertTo[HbConfig]
     val hb3_config = HB3yamlAst.convertTo[HbConfig]
-    val cic_config = CICyamlAst.convertTo[CicConfig]
+    val cic3_config = CICyamlAst.convertTo[CicConfig]
 
     val config = new F2Config(
 	    f2_config.syntax_version, 
@@ -148,7 +150,7 @@ object F2Config {
         hb1_config,
         hb2_config,
         hb3_config,
-        cic_config
+        cic3_config
     )
 
     println("resolution:")
@@ -167,7 +169,7 @@ object F2Config {
     println(config.hb3_config)
 
     println("cic:")
-    println(config.cic_config)
+    println(config.cic3_config)
 
     Left(config)
   }

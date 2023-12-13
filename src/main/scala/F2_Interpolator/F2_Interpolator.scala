@@ -1,11 +1,12 @@
 // Finitie impulse filter
 package f2_interpolator
 import config._
-import config.{FirConfig}
+import config.{F2Config}
 
 import java.io.File
 
 import chisel3._
+import chisel3.util.{log2Ceil, switch, is}
 import chisel3.experimental.FixedPoint
 import chisel3.stage.{ChiselStage, ChiselGeneratorAnnotation}
 import chisel3.stage.ChiselGeneratorAnnotation
@@ -15,6 +16,12 @@ import dsptools.numbers.DspComplex
 
 import hb_interpolator._
 import cic_interpolator._
+
+object F2States {
+    object State extends ChiselEnum {
+        val bypass, two, four, eight, more = Value
+    }  
+}
 
 class F2_InterpolatorCLK extends Bundle {
     val cic3clockfast = Input(Clock())
@@ -50,8 +57,9 @@ class F2_Interpolator(config: F2Config) extends Module {
     val data_reso = config.resolution
     val calc_reso = config.resolution * 2
 
-    //State definitions
-    val bypass :: two :: four :: eight :: more :: Nil = Enum(5)
+    import F2States.State
+    import F2States.State._
+
     //Select state with the fastest master clock
     val state = RegInit(bypass)
     
@@ -74,9 +82,9 @@ class F2_Interpolator(config: F2Config) extends Module {
     val hb1reset = Wire(Bool())
     val hb2reset = Wire(Bool())
     val hb3reset = Wire(Bool())
-    hb1reset := reset.toBool
-    hb2reset := reset.toBool
-    hb3reset := reset.toBool
+    hb1reset := reset.asBool
+    hb2reset := reset.asBool
+    hb3reset := reset.asBool
 
     val cic3reset = Wire(Bool())
     cic3reset := io.control.reset_loop
@@ -85,80 +93,81 @@ class F2_Interpolator(config: F2Config) extends Module {
         new HB_Interpolator(config=config.hb1_config)
     ))
 
-    val hb2 = withClockAndReset(io.clock.hb1clock_high, hb2reset)(Module( 
+    val hb2 = withClockAndReset(io.clock.hb2clock_high, hb2reset)(Module( 
         new HB_Interpolator(config=config.hb2_config)
     ))
 
-    val hb3 = withClockAndReset(io.clock.hb2clock_high, hb3reset)(Module(
+    val hb3 = withClockAndReset(io.clock.hb3clock_high, hb3reset)(Module(
         new HB_Interpolator(config=config.hb3_config)
     ))
 
-    val cic3 = withClockAndReset(io.clock.hb3clock_high, cicreset)(Module(
+    val cic3 = withClockAndReset(io.clock.cic3lock_high, cic3reset)(Module(
         new CIC_Interpolator(config=config.cic3_config)
     ))
 
     //Default is to bypass
-    hb1.io.clock_high := io.clock.hb1clock_high
-    hb1.io.scale := io.control.hb1scale
-    hb2.io.clock_high := io.clock.hb2clock_high
-    hb2.io.scale := io.control.hb2scale
-    hb3.io.clock_high := io.clock.hb3clock_high
-    hb3.io.scale := io.control.hb3scale
-    cic3.io.clockfast := io.clock.cic3clockfast
-    cic3.io.derivscale := io.control.cic3derivscale
-    cic3.io.derivshift := io.control.cic3derivshift
-    hb1.io.iptr_A := io.in.iptr_A
-    hb2.io.iptr_A := hb1.io.Z
-    hb3.io.iptr_A := hb2.io.Z
-    cic.io.iptr_A := hb3.io.Z
+    hb1.io.in.clock_high    := io.clock.hb1clock_high
+    hb1.io.in.scale         := io.control.hb1scale
+    hb2.io.in.clock_high    := io.clock.hb2clock_high
+    hb2.io.in.scale         := io.control.hb2scale
+    hb3.io.in.clock_high    := io.clock.hb3clock_high
+    hb3.io.in.scale         := io.control.hb3scale
+    cic3.io.in.clockfast    := io.clock.cic3clockfast
+    cic3.io.in.derivscale   := io.control.cic3derivscale
+    cic3.io.in.derivshift   := io.control.cic3derivshift
+
+    hb1.io.in.iptr_A := io.in.iptr_A
+    hb2.io.in.iptr_A := hb1.io.out.Z
+    hb3.io.in.iptr_A := hb2.io.out.Z
+    cic3.io.in.iptr_A := hb3.io.out.Z
     io.out.Z := withClock(io.clock.hb1clock_low) (RegNext(io.in.iptr_A)) 
     
     //Modes
     switch(state) {
         is(bypass) {
-            hb1reset         := true.B
-            hb2reset         := true.B
-            hb3reset         := true.B
-            cic3reset        := true.B 
-            io.out.Z         := withClock(io.clock.hb1clock_low) (RegNext(io.in.iptr_A))
+            hb1reset            := true.B
+            hb2reset            := true.B
+            hb3reset            := true.B
+            cic3reset           := true.B 
+            io.out.Z            := withClock(io.clock.hb1clock_low) (RegNext(io.in.iptr_A))
         }
         is(two) {
-            hb1.io.iptr_A    := io.in.iptr_A
-            hb1reset         := reset.toBool
-            hb2reset         := true.B
-            hb3reset         := true.B
-            cic3reset        := true.B 
-            io.out.Z         := hb1.io.Z
+            hb1.io.in.iptr_A    := io.in.iptr_A
+            hb1reset            := reset.asBool
+            hb2reset            := true.B
+            hb3reset            := true.B
+            cic3reset           := true.B 
+            io.out.Z            := hb1.io.out.Z
         }
         is(four) {
-            hb1.io.iptr_A    := io.in.iptr_A
-            hb1reset         := reset.toBool
-            hb2reset         := reset.toBool
-            hb3reset         := true.B
-            cic3reset        := true.B 
-            hb2.io.iptr_A    := hb1.io.Z
-            io.out.Z         := hb2.io.Z
+            hb1.io.in.iptr_A    := io.in.iptr_A
+            hb1reset            := reset.asBool
+            hb2reset            := reset.asBool
+            hb3reset            := true.B
+            cic3reset           := true.B 
+            hb2.io.in.iptr_A    := hb1.io.out.Z
+            io.out.Z            := hb2.io.out.Z
         }
         is(eight) {
-            hb1.io.iptr_A    := io.in.iptr_A
-            hb1reset         := reset.toBool
-            hb2reset         := reset.toBool
-            hb3reset         := reset.toBool
-            cic3reset        := io.control.reset_loop 
-            hb2.io.iptr_A    := hb1.io.Z
-            hb3.io.iptr_A    := hb2.io.Z
-            io.out.Z         := hb3.io.Z
+            hb1.io.in.iptr_A    := io.in.iptr_A
+            hb1reset            := reset.asBool
+            hb2reset            := reset.asBool
+            hb3reset            := reset.asBool
+            cic3reset           := io.control.reset_loop 
+            hb2.io.in.iptr_A    := hb1.io.out.Z
+            hb3.io.in.iptr_A    := hb2.io.out.Z
+            io.out.Z            := hb3.io.out.Z
         }
         is(more) {
-            hb1.io.iptr_A    := io.in.iptr_A
-            hb1reset         := reset.toBool
-            hb2reset         := reset.toBool
-            hb3reset         := reset.toBool
-            cicreset         := io.control.reset_loop
-            hb2.io.iptr_A    := hb1.io.Z
-            hb3.io.iptr_A    := hb2.io.Z
-            cic3.io.iptr_A   := hb3.io.Z
-            io.out.Z         := cic3.io.Z
+            hb1.io.in.iptr_A    := io.in.iptr_A
+            hb1reset            := reset.asBool
+            hb2reset            := reset.asBool
+            hb3reset            := reset.asBool
+            cic3reset           := io.control.reset_loop
+            hb2.io.in.iptr_A    := hb1.io.out.Z
+            hb3.io.in.iptr_A    := hb2.io.out.Z
+            cic3.io.in.iptr_A   := hb3.io.out.Z
+            io.out.Z            := cic3.io.out.Z
         }
     }
 }
@@ -166,7 +175,7 @@ class F2_Interpolator(config: F2Config) extends Module {
 
 
 /** Generates verilog or sv*/
-object FIR extends App with OptionParser {
+object F2_Interpolator extends App with OptionParser {
     // Parse command-line arguments
     val (options, arguments) = getopts(default_opts, args.toList)
     printopts(options, arguments)
@@ -175,16 +184,16 @@ object FIR extends App with OptionParser {
     val hb1config_file = options("hb1config_file")
     val hb2config_file = options("hb2config_file")
     val hb3config_file = options("hb3config_file")
-    val cicconfig_file = options("cicconfig_file")
+    val cic3config_file = options("cic3config_file")
     val target_dir = options("td")
     var f2_config: Option[F2Config] = None
 
-    F2Config.loadFromFiles(f2config_file, hb1config_file, hb2config_file, hb3config_file, cicconfig_file) match {
+    F2Config.loadFromFiles(f2config_file, hb1config_file, hb2config_file, hb3config_file, cic3config_file) match {
         case Left(config) => {
             f2_config = Some(config)
         }
         case Right(err) => {
-            System.err.println(s"\nCould not load FIR configuration from file:\n${err.msg}")
+            System.err.println(s"\nCould not load F2 configuration from file:\n${err.msg}")
             System.exit(-1)
         }
     }
@@ -208,17 +217,17 @@ trait OptionParser {
       "-hb1config_file",
       "-hb2config_file",
       "-hb3config_file",
-      "-cicconfig_file",
+      "-cic3config_file",
       "-td"
   )
 
   // Default values for the command-line options
   val default_opts : Map[String, String] = Map(
     "f2config_file"->"f2-config.yml",
-    "hb1config_file"->"hb/configs/hb1-config.yml",
-    "hb2config_file"->"hb/configs/hb2-config.yml",
-    "hb3config_file"->"hb/configs/hb3-config.yml",
-    "cicconfig_file"->"cic/configs/cic3-config.yml",
+    "hb1config_file"->"hb_interpolator/configs/hb1-config.yml",
+    "hb2config_file"->"hb_interpolator/configs/hb2-config.yml",
+    "hb3config_file"->"hb_interpolator/configs/hb3-config.yml",
+    "cic3config_file"->"cic_interpolator/configs/cic3-config.yml",
     "td"->"verilog/"
   )
 
@@ -237,7 +246,7 @@ trait OptionParser {
       |     -hb1config_file     [String]  : Generator YAML configuration file name. Default "hb1-config.yml".
       |     -hb2config_file     [String]  : Generator YAML configuration file name. Default "hb2-config.yml".
       |     -hb3config_file     [String]  : Generator YAML configuration file name. Default "hb3-config.yml".
-      |     -cicconfig_file     [String]  : Generator YAML configuration file name. Default "cic3-config.yml".
+      |     -cic3config_file    [String]  : Generator YAML configuration file name. Default "cic3-config.yml".
       |     -td                 [String]  : Target dir for building. Default "verilog/".
       |     -h                            : Show this help message.
       """.stripMargin
