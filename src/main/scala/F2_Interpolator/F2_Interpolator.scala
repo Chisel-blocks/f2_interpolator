@@ -101,7 +101,7 @@ class F2_Interpolator(config: F2Config) extends Module {
         new HB_Interpolator(config=config.hb3_config)
     ))
 
-    val cic3 = withClockAndReset(io.clock.cic3lock_high, cic3reset)(Module(
+    val cic3 = withClockAndReset(io.clock.cic3clockfast, cic3reset)(Module(
         new CIC_Interpolator(config=config.cic3_config)
     ))
 
