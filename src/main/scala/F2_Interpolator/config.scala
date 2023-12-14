@@ -29,8 +29,6 @@ case class F2Config(
 
 object F2Config {
   implicit val f2GenericFormat = yamlFormat3(F2Generic)
-  implicit val HbConfigFormat = yamlFormat4(HbConfig.apply)
-  implicit val CicConfigFormat = yamlFormat4(CicConfig.apply)
 
   // TODO: Update this to always match the major version number of the release
   val syntaxVersion = 2
