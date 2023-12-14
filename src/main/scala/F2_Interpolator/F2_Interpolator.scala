@@ -2,6 +2,8 @@
 package f2_interpolator
 import config._
 import config.{F2Config}
+import hb_interpolator.config.{HbConfig}
+import cic_interpolator.config.{CicConfig}
 
 import java.io.File
 
@@ -186,9 +188,55 @@ object F2_Interpolator extends App with OptionParser {
     val hb3config_file = options("hb3config_file")
     val cic3config_file = options("cic3config_file")
     val target_dir = options("td")
-    var f2_config: Option[F2Config] = None
 
-    F2Config.loadFromFiles(f2config_file, hb1config_file, hb2config_file, hb3config_file, cic3config_file) match {
+
+    var f2_config: Option[F2Config] = None
+    var hb1_config: Option[HbConfig] = None
+    var hb2_config: Option[HbConfig] = None
+    var hb3_config: Option[HbConfig] = None
+    var cic3_config: Option[CicConfig] = None
+
+    HbConfig.loadFromFile(hb1config_file) match {
+        case Left(config) => {
+            hb1_config = Some(config)
+        }
+        case Right(err) => {
+            System.err.println(s"\nCould not load F2 configuration from file:\n${err.msg}")
+            System.exit(-1)
+        }
+    }
+
+    HbConfig.loadFromFile(hb2config_file) match {
+        case Left(config) => {
+            hb2_config = Some(config)
+        }
+        case Right(err) => {
+            System.err.println(s"\nCould not load F2 configuration from file:\n${err.msg}")
+            System.exit(-1)
+        }
+    }
+
+    HbConfig.loadFromFile(hb3config_file) match {
+        case Left(config) => {
+            hb3_config = Some(config)
+        }
+        case Right(err) => {
+            System.err.println(s"\nCould not load F2 configuration from file:\n${err.msg}")
+            System.exit(-1)
+        }
+    }
+
+    CicConfig.loadFromFile(cic3config_file) match {
+        case Left(config) => {
+            cic3_config = Some(config)
+        }
+        case Right(err) => {
+            System.err.println(s"\nCould not load F2 configuration from file:\n${err.msg}")
+            System.exit(-1)
+        }
+    }
+
+    F2Config.loadFromFile(f2config_file, hb1_config.get, hb2_config.get, hb3_config.get, cic3_config.get) match {
         case Left(config) => {
             f2_config = Some(config)
         }
