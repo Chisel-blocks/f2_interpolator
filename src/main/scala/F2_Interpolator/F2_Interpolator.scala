@@ -201,7 +201,7 @@ object F2_Interpolator extends App with OptionParser {
             hb1_config = Some(config)
         }
         case Right(err) => {
-            System.err.println(s"\nCould not load F2 configuration from file:\n${err.msg}")
+            System.err.println(s"\nCould not load F2 hb1 configuration from file:\n${err.msg}")
             System.exit(-1)
         }
     }
@@ -211,7 +211,7 @@ object F2_Interpolator extends App with OptionParser {
             hb2_config = Some(config)
         }
         case Right(err) => {
-            System.err.println(s"\nCould not load F2 configuration from file:\n${err.msg}")
+            System.err.println(s"\nCould not load F2 hb2 configuration from file:\n${err.msg}")
             System.exit(-1)
         }
     }
@@ -221,7 +221,7 @@ object F2_Interpolator extends App with OptionParser {
             hb3_config = Some(config)
         }
         case Right(err) => {
-            System.err.println(s"\nCould not load F2 configuration from file:\n${err.msg}")
+            System.err.println(s"\nCould not load F2 hb3 configuration from file:\n${err.msg}")
             System.exit(-1)
         }
     }
@@ -231,7 +231,7 @@ object F2_Interpolator extends App with OptionParser {
             cic3_config = Some(config)
         }
         case Right(err) => {
-            System.err.println(s"\nCould not load F2 configuration from file:\n${err.msg}")
+            System.err.println(s"\nCould not load F2 cic3 configuration from file:\n${err.msg}")
             System.exit(-1)
         }
     }
