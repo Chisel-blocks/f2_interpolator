@@ -2,8 +2,6 @@
 package f2_interpolator
 import config._
 import config.{F2Config}
-import hb_interpolator.config.{HbConfig}
-import cic_interpolator.config.{CicConfig}
 
 import java.io.File
 
