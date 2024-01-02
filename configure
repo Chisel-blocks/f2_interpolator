@@ -76,13 +76,9 @@ SBT=sbt -J-Xmx16G -J-Xss8M
 
 # Default parameters
 f2config_file ?= "f2-config.yml"
-hb1config_file ?= "hb_interpolator/configs/hb1-config.yml"
-hb2config_file ?= "hb_interpolator/configs/hb2-config.yml"
-hb3config_file ?= "hb_interpolator/configs/hb3-config.yml"
-cic3config_file ?= "cic_interpolator/configs/cic3-config.yml"
 td ?= "\$(VERILOGDIR)/"
 
-MAINPARAMS = -f2config_file \$(f2config_file) -hb1config_file \$(hb1config_file) -hb2config_file \$(hb2config_file) -hb3config_file \$(hb3config_file) -cic3config_file \$(cic3config_file) -td \$(td)
+MAINPARAMS = -f2config_file \$(f2config_file) -td \$(td)
 
 
 

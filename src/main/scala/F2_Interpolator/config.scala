@@ -66,12 +66,19 @@ object F2Config {
     Left(version)
   }
 
-  def loadFromFile(f2file: String, hb1_config: hb_interpolator.config.HbConfig, hb2_config: hb_interpolator.config.HbConfig, hb3_config: hb_interpolator.config.HbConfig, cic3_config: cic_interpolator.config.CicConfig): Either[F2Config, Error] = {
-    println(s"\nLoading f2 configuration from file: $f2file")
-    var f2fileString: String = ""
+  def loadFromFile(
+    f2_file: String, 
+    hb1_file: String, 
+    hb2_file: String, 
+    hb3_file: String, 
+    cic3_file: String
+    ): Either[F2Config, Error] = {
+
+    println(s"\nLoading f2 configuration from file: $f2_file")
+    var f2_fileString: String = ""
     try {
-      val bufferedSource = Source.fromFile(f2file)
-      f2fileString = bufferedSource.getLines().mkString("\n")
+      val bufferedSource = Source.fromFile(f2_file)
+      f2_fileString = bufferedSource.getLines().mkString("\n")
       bufferedSource.close
     } catch {
       case e: Exception => return Right(Error(e.getMessage()))
@@ -82,12 +89,57 @@ object F2Config {
     //println(s"```\n$fileString\n```")
 
     // Determine syntax version
-    val F2yamlAst = f2fileString.parseYaml
+    val F2yamlAst = f2_fileString.parseYaml
 
     val syntaxVersion = parseSyntaxVersion(F2yamlAst)
     syntaxVersion match {
       case Left(value) => ()
       case Right(err) => return Right(err)
+    }
+
+    var hb1_config: Option[HbConfig] = None
+    var hb2_config: Option[HbConfig] = None
+    var hb3_config: Option[HbConfig] = None
+    var cic3_config: Option[CicConfig] = None
+
+    HbConfig.loadFromFile(hb1_file) match {
+        case Left(config) => {
+            hb1_config = Some(config)
+        }
+        case Right(err) => {
+            System.err.println(s"\nCould not load F2 hb1 configuration from file:\n${err.msg}")
+            System.exit(-1)
+        }
+    }
+
+    HbConfig.loadFromFile(hb2_file) match {
+        case Left(config) => {
+            hb2_config = Some(config)
+        }
+        case Right(err) => {
+            System.err.println(s"\nCould not load F2 hb2 configuration from file:\n${err.msg}")
+            System.exit(-1)
+        }
+    }
+
+    HbConfig.loadFromFile(hb3_file) match {
+        case Left(config) => {
+            hb3_config = Some(config)
+        }
+        case Right(err) => {
+            System.err.println(s"\nCould not load F2 hb3 configuration from file:\n${err.msg}")
+            System.exit(-1)
+        }
+    }
+
+    CicConfig.loadFromFile(cic3_file) match {
+        case Left(config) => {
+            cic3_config = Some(config)
+        }
+        case Right(err) => {
+            System.err.println(s"\nCould not load F2 cic3 configuration from file:\n${err.msg}")
+            System.exit(-1)
+        }
     }
 
     // Parse FirConfig from YAML AST
@@ -97,10 +149,10 @@ object F2Config {
 	    f2_config.syntax_version, 
 	    f2_config.resolution, 
 	    f2_config.gainBits,
-        hb1_config,
-        hb2_config,
-        hb3_config,
-        cic3_config
+        hb1_config.get,
+        hb2_config.get,
+        hb3_config.get,
+        cic3_config.get
     )
 
     println("resolution:")
