@@ -93,15 +93,15 @@ class F2_Interpolator(config: F2Config) extends Module {
         new HB_Interpolator(config=config.hb1_config)
     ))
 
-    val hb2 = withClockAndReset(io.clock.hb2clock_high, hb2reset)(Module( 
+    val hb2 = withClockAndReset(io.clock.hb1clock_high, hb2reset)(Module( 
         new HB_Interpolator(config=config.hb2_config)
     ))
 
-    val hb3 = withClockAndReset(io.clock.hb3clock_high, hb3reset)(Module(
+    val hb3 = withClockAndReset(io.clock.hb2clock_high, hb3reset)(Module(
         new HB_Interpolator(config=config.hb3_config)
     ))
 
-    val cic3 = withClockAndReset(io.clock.cic3clockfast, cic3reset)(Module(
+    val cic3 = withClockAndReset(io.clock.hb3clock_high, cic3reset)(Module(
         new CIC_Interpolator(config=config.cic3_config)
     ))
 
