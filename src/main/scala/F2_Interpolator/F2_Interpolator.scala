@@ -17,12 +17,6 @@ import dsptools.numbers.DspComplex
 import hb_interpolator._
 import cic_interpolator._
 
-object F2States {
-    object State extends ChiselEnum {
-        val bypass, two, four, eight, more = Value
-    }  
-}
-
 class F2_InterpolatorCLK extends Bundle {
     val cic3clockfast = Input(Clock())
     val hb1clock_low = Input(Clock())
@@ -56,28 +50,7 @@ class F2_Interpolator(config: F2Config) extends Module {
     val io = IO(new F2_InterpolatorIO(resolution=config.resolution, gainBits=config.gainBits))
     val data_reso = config.resolution
     val calc_reso = config.resolution * 2
-
-    import F2States.State
-    import F2States.State._
-
-    //Select state with the fastest master clock
-    val state = RegInit(bypass)
-    
-    //Decoder for the modes
-    when(io.control.mode === 0.U){
-        state := bypass
-    } .elsewhen(io.control.mode === 1.U) {
-        state := two
-    } .elsewhen(io.control.mode === 2.U) {
-        state := four
-    } .elsewhen(io.control.mode === 3.U) {
-        state := eight
-    } .elsewhen(io.control.mode === 4.U) {
-        state := more
-    }.otherwise {
-        state := bypass
-    }
-    
+        
     //Reset initializations
     val hb1reset = Wire(Bool())
     val hb2reset = Wire(Bool())
@@ -122,53 +95,51 @@ class F2_Interpolator(config: F2Config) extends Module {
     cic3.io.in.iptr_A := hb3.io.out.Z
     io.out.Z := withClock(io.clock.hb1clock_low) (RegNext(io.in.iptr_A)) 
     
-    //Modes
-    switch(state) {
-        is(bypass) {
-            hb1reset            := true.B
-            hb2reset            := true.B
-            hb3reset            := true.B
-            cic3reset           := true.B 
-            io.out.Z            := withClock(io.clock.hb1clock_low) (RegNext(io.in.iptr_A))
-        }
-        is(two) {
-            hb1.io.in.iptr_A    := io.in.iptr_A
-            hb1reset            := reset.asBool
-            hb2reset            := true.B
-            hb3reset            := true.B
-            cic3reset           := true.B 
-            io.out.Z            := hb1.io.out.Z
-        }
-        is(four) {
-            hb1.io.in.iptr_A    := io.in.iptr_A
-            hb1reset            := reset.asBool
-            hb2reset            := reset.asBool
-            hb3reset            := true.B
-            cic3reset           := true.B 
-            hb2.io.in.iptr_A    := hb1.io.out.Z
-            io.out.Z            := hb2.io.out.Z
-        }
-        is(eight) {
-            hb1.io.in.iptr_A    := io.in.iptr_A
-            hb1reset            := reset.asBool
-            hb2reset            := reset.asBool
-            hb3reset            := reset.asBool
-            cic3reset           := io.control.reset_loop 
-            hb2.io.in.iptr_A    := hb1.io.out.Z
-            hb3.io.in.iptr_A    := hb2.io.out.Z
-            io.out.Z            := hb3.io.out.Z
-        }
-        is(more) {
-            hb1.io.in.iptr_A    := io.in.iptr_A
-            hb1reset            := reset.asBool
-            hb2reset            := reset.asBool
-            hb3reset            := reset.asBool
-            cic3reset           := io.control.reset_loop
-            hb2.io.in.iptr_A    := hb1.io.out.Z
-            hb3.io.in.iptr_A    := hb2.io.out.Z
-            cic3.io.in.iptr_A   := hb3.io.out.Z
-            io.out.Z            := cic3.io.out.Z
-        }
+    //Decoder for the modes
+    when(io.control.mode === 1.U) { //Two
+        hb1reset            := reset.asBool
+        hb2reset            := true.B
+        hb3reset            := true.B
+        cic3reset           := true.B 
+
+        hb1.io.in.iptr_A    := io.in.iptr_A
+        io.out.Z            := hb1.io.out.Z
+    } .elsewhen(io.control.mode === 2.U) { //Four
+        hb1reset            := reset.asBool
+        hb2reset            := reset.asBool
+        hb3reset            := true.B
+        cic3reset           := true.B 
+
+        hb1.io.in.iptr_A    := io.in.iptr_A
+        hb2.io.in.iptr_A    := hb1.io.out.Z
+        io.out.Z            := hb2.io.out.Z
+    } .elsewhen(io.control.mode === 3.U) { //Eight
+        hb1reset            := reset.asBool
+        hb2reset            := reset.asBool
+        hb3reset            := reset.asBool
+        cic3reset           := io.control.reset_loop 
+
+        hb1.io.in.iptr_A    := io.in.iptr_A
+        hb2.io.in.iptr_A    := hb1.io.out.Z
+        hb3.io.in.iptr_A    := hb2.io.out.Z
+        io.out.Z            := hb3.io.out.Z
+    } .elsewhen(io.control.mode === 4.U) { //More
+        hb1reset            := reset.asBool
+        hb2reset            := reset.asBool
+        hb3reset            := reset.asBool
+        cic3reset           := io.control.reset_loop
+
+        hb1.io.in.iptr_A    := io.in.iptr_A
+        hb2.io.in.iptr_A    := hb1.io.out.Z
+        hb3.io.in.iptr_A    := hb2.io.out.Z
+        cic3.io.in.iptr_A   := hb3.io.out.Z
+        io.out.Z            := cic3.io.out.Z
+    }.otherwise { //Bypass
+        hb1reset            := true.B
+        hb2reset            := true.B
+        hb3reset            := true.B
+        cic3reset           := true.B 
+        io.out.Z            := withClock(io.clock.hb1clock_low) (RegNext(io.in.iptr_A))
     }
 }
 
