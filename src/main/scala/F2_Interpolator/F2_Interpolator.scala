@@ -32,6 +32,9 @@ class F2_InterpolatorCTRL(val resolution : Int, val gainBits: Int) extends Bundl
     val hb1scale = Input(UInt(gainBits.W))
     val hb2scale = Input(UInt(gainBits.W))
     val hb3scale = Input(UInt(gainBits.W))
+    val hb1output_switch = Input(UInt(1.W))
+    val hb2output_switch = Input(UInt(1.W))
+    val hb3output_switch = Input(UInt(1.W))
     val mode = Input(UInt(3.W))
 }
 
@@ -81,10 +84,13 @@ class F2_Interpolator(config: F2Config) extends Module {
     //Default is to bypass
     hb1.io.in.clock_high    := io.clock.hb1clock_high
     hb1.io.in.scale         := io.control.hb1scale
+    hb1.io.in.output_switch := io.control.hb1output_switch
     hb2.io.in.clock_high    := io.clock.hb2clock_high
     hb2.io.in.scale         := io.control.hb2scale
+    hb2.io.in.output_switch := io.control.hb2output_switch
     hb3.io.in.clock_high    := io.clock.hb3clock_high
     hb3.io.in.scale         := io.control.hb3scale
+    hb3.io.in.output_switch := io.control.hb3output_switch
     cic3.io.in.clockfast    := io.clock.cic3clockfast
     cic3.io.in.derivscale   := io.control.cic3derivscale
     cic3.io.in.derivshift   := io.control.cic3derivshift
